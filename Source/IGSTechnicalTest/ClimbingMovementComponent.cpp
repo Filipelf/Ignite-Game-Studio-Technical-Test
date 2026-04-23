@@ -38,9 +38,7 @@ void UClimbingMovementComponent::BeginPlay()
             }
         }
         else
-        {
             UE_LOG(LogTemp, Error, TEXT("No Surface Found at Spawn"));
-        }
     }
 }
 
@@ -57,31 +55,55 @@ bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition
 
     QueryParams.bTraceComplex = true;
 
-    FVector SphereCenter = FVector::ZeroVector;
-    FVector DirToCenter = (SphereCenter - FromPosition).GetSafeNormal();
-
-    FVector Start = FromPosition;
-    FVector End = FromPosition + DirToCenter * MaxTraceDistance;
-
-    DrawDebugLine(GetWorld(), Start, End, FColor::Yellow, false, 1.0f, 0, 2.0f);
-
-    if (GetWorld()->LineTraceSingleByChannel(OutHit, Start, End, ECC_WorldStatic, QueryParams))
+    if (CurrentClimbingSurface)
     {
-        DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Green, false, 0.1f);
+        FHitResult NormalHit;
+        FVector StartNormal = FromPosition;
+        FVector EndNormal = FromPosition - OwnerCharacter->GetActorUpVector() * MaxTraceDistance;
 
-        if (OutHit.GetComponent() && OutHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
+        if (GetWorld()->LineTraceSingleByChannel(NormalHit, StartNormal, EndNormal, ECC_WorldStatic, QueryParams))
         {
-            CurrentClimbingSurface = OutHit.GetComponent();
-            return true;
+            if (NormalHit.GetComponent() && NormalHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
+            {
+                FVector TraceDir = -NormalHit.Normal;
+                FVector TraceStart = FromPosition + NormalHit.Normal * 100.0f;
+                FVector TraceEnd = FromPosition + TraceDir * MaxTraceDistance;
+
+                DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Yellow, false, 1.0f, 0, 2.0f);
+
+                if (GetWorld()->LineTraceSingleByChannel(OutHit, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams))
+                {
+                    DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Green, false, 0.1f);
+
+                    if (OutHit.GetComponent() && OutHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
+                        return true;
+                }
+            }
+        }
+
+        FVector MeshCenter = CurrentClimbingSurface->Bounds.Origin;
+        FVector DirToCenter = (MeshCenter - FromPosition).GetSafeNormal();
+
+        FVector StartCenter = FromPosition;
+        FVector EndCenter = FromPosition + DirToCenter * MaxTraceDistance;
+
+        DrawDebugLine(GetWorld(), StartCenter, EndCenter, FColor::Magenta, false, 1.0f, 0, 2.0f);
+
+        if (GetWorld()->LineTraceSingleByChannel(OutHit, StartCenter, EndCenter, ECC_WorldStatic, QueryParams))
+        {
+            DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Orange, false, 0.1f);
+
+            if (OutHit.GetComponent() && OutHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
+                return true;
         }
     }
 
-    FVector Start2 = FromPosition;
-    FVector End2 = FromPosition - FVector::UpVector * MaxTraceDistance;
+    FVector StartDown = FromPosition + FVector::UpVector * 100.0f;
+    FVector EndDown = FromPosition - FVector::UpVector * MaxTraceDistance;
 
-    DrawDebugLine(GetWorld(), Start2, End2, FColor::Cyan, false, 1.0f, 0, 2.0f);
+    DrawDebugLine(GetWorld(), StartDown, EndDown, FColor::Cyan, false, 1.0f, 0, 2.0f);
 
-    if (GetWorld()->LineTraceSingleByChannel(OutHit, Start2, End2, ECC_WorldStatic, QueryParams))
+    if (GetWorld()->LineTraceSingleByChannel(OutHit, StartDown, EndDown, ECC_WorldStatic, QueryParams))
     {
         DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Blue, false, 0.1f);
 
@@ -97,7 +119,8 @@ bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition
 
 bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator& OutRotation)
 {
-    if (!bEnableSnap || !OwnerCharacter) return false;
+    if (!bEnableSnap || !OwnerCharacter)
+        return false;
 
     if (InOutPosition.ContainsNaN())
     {
@@ -115,17 +138,14 @@ bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator&
         FVector DirToCenter = (SphereCenter - Hit.Location).GetSafeNormal();
 
         if (FVector::DotProduct(OutwardNormal, DirToCenter) > 0)
-        {
             OutwardNormal = -OutwardNormal;
-        }
 
         FVector TargetPosition = Hit.Location + OutwardNormal * SurfaceOffset;
 
         float PositionDelta = FVector::Dist(InOutPosition, TargetPosition);
+
         if (PositionDelta > SnapPositionTolerance)
-        {
             InOutPosition = TargetPosition;
-        }
 
         FVector NewUp = OutwardNormal;
         FVector NewForward = OwnerCharacter->GetActorForwardVector();
@@ -154,18 +174,15 @@ bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator&
         float RotDiff = FMath::Abs(RotDelta.Yaw) + FMath::Abs(RotDelta.Pitch) + FMath::Abs(RotDelta.Roll);
 
         if (RotDiff > SnapRotationTolerance)
-        {
             OutRotation = TargetRotation;
-        }
         else
-        {
             OutRotation = CurrentRotation;
-        }
 
         return true;
     }
 
     OutRotation = OwnerCharacter->GetActorRotation();
+
     return false;
 }
 
