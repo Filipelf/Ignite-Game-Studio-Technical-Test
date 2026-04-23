@@ -18,7 +18,6 @@ protected:
     virtual void BeginPlay() override;
 
 public:
-    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float MovementSpeed = 600.0f;
@@ -47,6 +46,7 @@ public:
     UFUNCTION()
     bool SnapToSurface(FVector& InOutPosition, FRotator& OutRotation);
 
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 private:
     UPROPERTY(EditAnywhere, Category = "Climbing")
     float MaxTraceDistance = 3000.0f;

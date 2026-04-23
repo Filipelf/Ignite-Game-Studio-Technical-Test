@@ -18,9 +18,21 @@ protected:
     virtual void BeginPlay() override;
 
 public:
-    virtual void Tick(float DeltaTime) override;
-    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UClimbingMovementComponent* ClimbingMovementComponent;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+    class USpringArmComponent* CameraBoom;
+
+    UFUNCTION(BlueprintCallable, Category = "Camera")
+    void RotateCameraLeft();
+
+    UFUNCTION(BlueprintCallable, Category = "Camera")
+    void RotateCameraRight();
+
+    UFUNCTION(BlueprintCallable, Category = "Camera")
+    void ResetCameraRotation();
+
+    virtual void Tick(float DeltaTime) override;
+    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 };

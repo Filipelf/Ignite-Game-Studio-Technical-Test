@@ -1,14 +1,26 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "ClimbingCharacter.h"
 #include "ClimbingMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "Camera/CameraComponent.h"
 
 AClimbingCharacter::AClimbingCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
 
     ClimbingMovementComponent = CreateDefaultSubobject<UClimbingMovementComponent>(TEXT("ClimbingMovementComponent"));
+
+    CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+    CameraBoom->SetupAttachment(RootComponent);
+    CameraBoom->SetRelativeLocation(FVector::ZeroVector);
+    CameraBoom->TargetArmLength = 1500.0f;
+    CameraBoom->SetRelativeRotation(FRotator(-65.0f, 0.0f, 0.0f));
+    CameraBoom->bUsePawnControlRotation = false;
+    CameraBoom->bInheritPitch = false;
+    CameraBoom->bInheritYaw = false;
+    CameraBoom->bInheritRoll = false;
 }
 
 void AClimbingCharacter::BeginPlay()
@@ -26,3 +38,32 @@ void AClimbingCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
+void AClimbingCharacter::RotateCameraLeft()
+{
+    if (CameraBoom)
+    {
+        FRotator NewRotation = CameraBoom->GetComponentRotation();
+        NewRotation.Yaw += 90.0f;
+        CameraBoom->SetRelativeRotation(NewRotation);
+    }
+}
+
+void AClimbingCharacter::RotateCameraRight()
+{
+    if (CameraBoom)
+    {
+        FRotator NewRotation = CameraBoom->GetComponentRotation();
+        NewRotation.Yaw -= 90.0f;
+        CameraBoom->SetRelativeRotation(NewRotation);
+    }
+}
+
+void AClimbingCharacter::ResetCameraRotation()
+{
+    if (CameraBoom)
+    {
+        FRotator NewRotation = CameraBoom->GetComponentRotation();
+        NewRotation = FRotator(-65.0f, 0.0f, 0.0f);
+        CameraBoom->SetRelativeRotation(NewRotation);
+    }
+}
