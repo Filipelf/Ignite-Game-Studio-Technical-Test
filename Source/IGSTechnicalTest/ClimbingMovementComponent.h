@@ -60,8 +60,15 @@ private:
     bool bIsMoving = false;
     FVector TargetDestination;
 
+    TArray<FVector> WaypointQueue;
+
     bool FindClimbingSurface(const FVector& FromPosition, FHitResult& OutHit);
+
     void NoSnapMovement(float DeltaTime);
+
     void CharacterIdleStateWithSnap();
     void CharacterMovingStateWithSnap(float DeltaTime);
+
+    bool IsPathBlocked(const FVector& Start, const FVector& End);
+    FVector FindDetourPoint(const FVector& Current, const FVector& Target, int32 Attempt);
 };

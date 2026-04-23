@@ -161,10 +161,20 @@ void UClimbingMovementComponent::CharacterMovingStateWithSnap(float DeltaTime)
         }
     }
 
-    if (FVector::Dist(NewLocation, DynamicTarget) <= AcceptanceRadius)
+    float DistanceToTarget = FVector::Dist(NewLocation, DynamicTarget);
+    if (DistanceToTarget <= AcceptanceRadius)
     {
-        bIsMoving = false;
-        UE_LOG(LogTemp, Warning, TEXT("Arrived at Destination"));
+        if (WaypointQueue.Num() > 0)
+        {
+            TargetDestination = WaypointQueue[0];
+            WaypointQueue.RemoveAt(0);
+            UE_LOG(LogTemp, Warning, TEXT("Moving to Next Waypoint. Attempts Left: %d"), WaypointQueue.Num());
+        }
+        else
+        {
+            bIsMoving = false;
+            UE_LOG(LogTemp, Warning, TEXT("Couldnt Find Path to Destination"));
+        }
     }
 }
 
@@ -236,6 +246,7 @@ bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition
         if (OutHit.GetComponent() && OutHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
         {
             CurrentClimbingSurface = OutHit.GetComponent();
+
             return true;
         }
     }
@@ -251,6 +262,7 @@ bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator&
     if (InOutPosition.ContainsNaN())
     {
         UE_LOG(LogTemp, Error, TEXT("SnapToSurface got NaN position"));
+
         return false;
     }
 
@@ -312,15 +324,71 @@ bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator&
     return false;
 }
 
-void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
+bool UClimbingMovementComponent::IsPathBlocked(const FVector& Start, const FVector& End)
 {
-    if (!OwnerCharacter) return;
+    if (!OwnerCharacter)
+        return true;
+
+    FHitResult Hit;
+    FCollisionQueryParams QueryParams;
+    QueryParams.AddIgnoredActor(OwnerCharacter);
+    QueryParams.bTraceComplex = true;
+
+    bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_WorldStatic, QueryParams);
+
+    if (bHit && Hit.GetComponent())
+    {
+        if (!Hit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
+        {
+            DrawDebugLine(GetWorld(), Start, Hit.Location, FColor::Red, false, 2.0f, 0, 4.0f);
+            DrawDebugSphere(GetWorld(), Hit.Location, 30.0f, 12, FColor::Red, false, 2.0f);
+            return true;
+        }
+    }
+
+    DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.5f, 0, 2.0f);
+    return false;
+}
+
+FVector UClimbingMovementComponent::FindDetourPoint(const FVector& Current, const FVector& Target, int32 Attempt)
+{
+    if (!OwnerCharacter)
+        return Target;
+
+    FVector Direction = (Target - Current).GetSafeNormal();
+
+    if (Direction.IsNearlyZero())
+        return Target;
+
+    FVector UpVector = OwnerCharacter->GetActorUpVector();
+    FVector Right = FVector::CrossProduct(UpVector, Direction).GetSafeNormal();
+    FVector Left = -Right;
+
+    FVector DetourDirection = (Attempt % 2 == 0) ? Right : Left;
+
+    float DetourDistance = 400.0f + (Attempt * 200.0f);
+
+    FVector DetourPoint = Current + DetourDirection * DetourDistance;
 
     FHitResult Hit;
 
+    if (FindClimbingSurface(DetourPoint, Hit))
+        DetourPoint = Hit.Location + Hit.Normal * SurfaceOffset;
+
+    DrawDebugSphere(GetWorld(), DetourPoint, 40.0f, 12, FColor::Yellow, false, 3.0f);
+    DrawDebugString(GetWorld(), DetourPoint, FString::Printf(TEXT("Attempt %d"), Attempt), nullptr, FColor::Yellow, 3.0f);
+
+    return DetourPoint;
+}
+
+void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
+{
+    if (!OwnerCharacter)
+        return;
+
+    FHitResult Hit;
     FVector SphereCenter = FVector::ZeroVector;
     FVector DirFromCenter = (TargetLocation - SphereCenter).GetSafeNormal();
-
     FVector Start = TargetLocation + DirFromCenter * 500.0f;
     FVector End = TargetLocation - DirFromCenter * MaxTraceDistance;
 
@@ -332,18 +400,48 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
 
     QueryParams.bTraceComplex = true;
 
-    DrawDebugLine(GetWorld(), Start, End, FColor::Magenta, false, 2.0f, 0, 3.0f);
-
     if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_WorldStatic, QueryParams))
     {
-        DrawDebugSphere(GetWorld(), Hit.Location, 25.0f, 12, FColor::Red, false, 2.0f);
-
         if (Hit.GetComponent() && Hit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
         {
-            TargetDestination = Hit.Location + Hit.Normal * SurfaceOffset;
+            FVector FinalDestination = Hit.Location + Hit.Normal * SurfaceOffset;
+            FVector CurrentPos = OwnerCharacter->GetActorLocation();
+
+            if (IsPathBlocked(CurrentPos, FinalDestination))
+            {
+                bool bFoundDetour = false;
+
+                for (int32 Attempt = 0; Attempt < 5; Attempt++)
+                {
+                    FVector DetourPoint = FindDetourPoint(CurrentPos, FinalDestination, Attempt);
+
+                    if (!IsPathBlocked(CurrentPos, DetourPoint))
+                    {
+                        if (!IsPathBlocked(DetourPoint, FinalDestination))
+                        {
+                            WaypointQueue.Empty();
+                            WaypointQueue.Add(DetourPoint);
+                            WaypointQueue.Add(FinalDestination);
+
+                            TargetDestination = WaypointQueue[0];
+                            WaypointQueue.RemoveAt(0);
+                            bIsMoving = true;
+
+                            UE_LOG(LogTemp, Warning, TEXT("Linear Path blocked. Going through waypoint %d"), WaypointQueue.Num() + 1);
+
+                            return;
+                        }
+                    }
+                }
+
+                UE_LOG(LogTemp, Warning, TEXT("No Detour Found. Moving Straight."));
+            }
+
+            TargetDestination = FinalDestination;
             bIsMoving = true;
 
-            UE_LOG(LogTemp, Warning, TEXT("Moving to Valid Destination: %s"), *TargetDestination.ToString());
+            UE_LOG(LogTemp, Warning, TEXT("Moving to a Valid Destination: %s"), *TargetDestination.ToString());
+
             return;
         }
     }
@@ -352,7 +450,9 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
     {
         TargetDestination = Hit.Location + Hit.Normal * SurfaceOffset;
         bIsMoving = true;
+
         UE_LOG(LogTemp, Warning, TEXT("Moving to Destination (Fallback): %s"), *TargetDestination.ToString());
+
         return;
     }
 
