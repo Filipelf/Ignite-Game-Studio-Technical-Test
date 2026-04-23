@@ -42,6 +42,121 @@ void UClimbingMovementComponent::BeginPlay()
     }
 }
 
+void UClimbingMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+    if (!OwnerCharacter)
+        return;
+
+    if (!bEnableSnap)
+    {
+        if (bIsMoving)
+        {
+            FVector CurrentPos = OwnerCharacter->GetActorLocation();
+            FVector Direction = (TargetDestination - CurrentPos).GetSafeNormal();
+
+            if (Direction.IsNearlyZero())
+            {
+                bIsMoving = false;
+                return;
+            }
+
+            FVector NewLocation = CurrentPos + Direction * MovementSpeed * DeltaTime;
+            OwnerCharacter->SetActorLocation(NewLocation);
+
+            if (FVector::Dist(NewLocation, TargetDestination) <= AcceptanceRadius)
+            {
+                bIsMoving = false;
+            }
+        }
+        return;
+    }
+
+    if (!bIsMoving)
+    {
+        FVector CurrentPos = OwnerCharacter->GetActorLocation();
+        FRotator CurrentRot = OwnerCharacter->GetActorRotation();
+        FVector SnappedPos = CurrentPos;
+        FRotator SnappedRot = CurrentRot;
+
+        if (SnapToSurface(SnappedPos, SnappedRot))
+        {
+            float PosDelta = FVector::Dist(CurrentPos, SnappedPos);
+            FRotator RotDelta = (SnappedRot - CurrentRot).GetNormalized();
+            float RotDiff = FMath::Abs(RotDelta.Yaw) + FMath::Abs(RotDelta.Pitch) + FMath::Abs(RotDelta.Roll);
+
+            if (PosDelta > SnapPositionTolerance || RotDiff > SnapRotationTolerance)
+                OwnerCharacter->SetActorLocationAndRotation(SnappedPos, SnappedRot);
+        }
+
+        if (CurrentClimbingSurface)
+        {
+            FHitResult Hit;
+
+            if (FindClimbingSurface(OwnerCharacter->GetActorLocation(), Hit))
+            {
+                FVector CorrectPos = Hit.Location + Hit.Normal * SurfaceOffset;
+                float Dist = FVector::Dist(OwnerCharacter->GetActorLocation(), CorrectPos);
+
+                if (Dist > 5.0f)
+                {
+                    FVector NewPos = FMath::VInterpTo(OwnerCharacter->GetActorLocation(), CorrectPos, DeltaTime, 5.0f);
+                    OwnerCharacter->SetActorLocation(NewPos);
+                }
+            }
+        }
+
+        return;
+    }
+
+    FVector DynamicTarget = TargetDestination;
+    FHitResult Hit;
+
+    if (FindClimbingSurface(TargetDestination, Hit))
+        DynamicTarget = Hit.Location + Hit.Normal * SurfaceOffset;
+
+    FVector CurrentPos = OwnerCharacter->GetActorLocation();
+    FVector Direction = (DynamicTarget - CurrentPos).GetSafeNormal();
+
+    if (Direction.IsNearlyZero())
+    {
+        bIsMoving = false;
+        UE_LOG(LogTemp, Warning, TEXT("Arrived at Destination (ZeroVector)"));
+        return;
+    }
+
+    FVector UpVector = OwnerCharacter->GetActorUpVector();
+    Direction = FVector::VectorPlaneProject(Direction, UpVector);
+
+    if (!Direction.IsNearlyZero())
+        Direction.Normalize();
+
+    FVector NewLocation = CurrentPos + Direction * MovementSpeed * DeltaTime;
+    OwnerCharacter->SetActorLocation(NewLocation);
+
+    if (FindClimbingSurface(NewLocation, Hit))
+    {
+        FRotator NewRotation = OwnerCharacter->GetActorRotation();
+        FVector NewUp = Hit.Normal;
+        FVector NewForward = OwnerCharacter->GetActorForwardVector();
+        NewForward = FVector::VectorPlaneProject(NewForward, NewUp);
+
+        if (!NewForward.IsNearlyZero())
+        {
+            NewForward.Normalize();
+            NewRotation = UKismetMathLibrary::MakeRotFromXZ(NewForward, NewUp);
+            OwnerCharacter->SetActorRotation(NewRotation);
+        }
+    }
+
+    if (FVector::Dist(NewLocation, DynamicTarget) <= AcceptanceRadius)
+    {
+        bIsMoving = false;
+        UE_LOG(LogTemp, Warning, TEXT("Arrived at Destination. Distance: %f"), FVector::Dist(NewLocation, DynamicTarget));
+    }
+}
+
 bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition, FHitResult& OutHit)
 {
     if (!OwnerCharacter)
@@ -200,10 +315,10 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
 
     FCollisionQueryParams QueryParams;
     QueryParams.AddIgnoredActor(OwnerCharacter);
+
     if (UPrimitiveComponent* RootComp = Cast<UPrimitiveComponent>(OwnerCharacter->GetRootComponent()))
-    {
         QueryParams.AddIgnoredComponent(RootComp);
-    }
+
     QueryParams.bTraceComplex = true;
 
     DrawDebugLine(GetWorld(), Start, End, FColor::Magenta, false, 2.0f, 0, 3.0f);
@@ -231,113 +346,4 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
     }
 
     UE_LOG(LogTemp, Warning, TEXT("Invalid Click. No Surface Found"));
-}
-
-void UClimbingMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-    Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-    if (!OwnerCharacter) return;
-
-    if (!bIsMoving)
-    {
-        if (bEnableSnap)
-        {
-            FVector CurrentPos = OwnerCharacter->GetActorLocation();
-            FRotator CurrentRot = OwnerCharacter->GetActorRotation();
-
-            FVector SnappedPos = CurrentPos;
-            FRotator SnappedRot = CurrentRot;
-
-            if (SnapToSurface(SnappedPos, SnappedRot))
-            {
-                float PosDelta = FVector::Dist(CurrentPos, SnappedPos);
-
-                FRotator RotDelta = (SnappedRot - CurrentRot).GetNormalized();
-                float RotDiff = FMath::Abs(RotDelta.Yaw) + FMath::Abs(RotDelta.Pitch) + FMath::Abs(RotDelta.Roll);
-
-                if (PosDelta > SnapPositionTolerance || RotDiff > SnapRotationTolerance)
-                {
-                    OwnerCharacter->SetActorLocationAndRotation(SnappedPos, SnappedRot);
-                }
-            }
-
-            if (CurrentClimbingSurface)
-            {
-                FHitResult Hit;
-                if (FindClimbingSurface(OwnerCharacter->GetActorLocation(), Hit))
-                {
-                    FVector CorrectPos = Hit.Location + Hit.Normal * SurfaceOffset;
-                    float Dist = FVector::Dist(OwnerCharacter->GetActorLocation(), CorrectPos);
-
-                    if (Dist > 5.0f)
-                    {
-                        FVector NewPos = FMath::VInterpTo(OwnerCharacter->GetActorLocation(), CorrectPos, DeltaTime, 5.0f);
-                        OwnerCharacter->SetActorLocation(NewPos);
-                    }
-                }
-            }
-        }
-        return;
-    }
-
-    FVector CurrentPos = OwnerCharacter->GetActorLocation();
-    FVector DynamicTarget = TargetDestination;
-
-    if (bEnableSnap)
-    {
-        FHitResult Hit;
-        if (FindClimbingSurface(TargetDestination, Hit))
-        {
-            DynamicTarget = Hit.Location + Hit.Normal * SurfaceOffset;
-        }
-    }
-
-    FVector Direction = (DynamicTarget - CurrentPos).GetSafeNormal();
-
-    if (Direction.IsNearlyZero())
-    {
-        bIsMoving = false;
-        UE_LOG(LogTemp, Warning, TEXT("Arrived at Destination (ZeroVector)"));
-        return;
-    }
-
-    if (bEnableSnap)
-    {
-        FVector UpVector = OwnerCharacter->GetActorUpVector();
-        Direction = FVector::VectorPlaneProject(Direction, UpVector);
-        if (!Direction.IsNearlyZero())
-        {
-            Direction.Normalize();
-        }
-    }
-
-    FVector NewLocation = CurrentPos + Direction * MovementSpeed * DeltaTime;
-    OwnerCharacter->SetActorLocation(NewLocation);
-
-    if (bEnableSnap)
-    {
-        FHitResult Hit;
-        if (FindClimbingSurface(NewLocation, Hit))
-        {
-            FRotator NewRotation = OwnerCharacter->GetActorRotation();
-            FVector NewUp = Hit.Normal;
-            FVector NewForward = OwnerCharacter->GetActorForwardVector();
-            NewForward = FVector::VectorPlaneProject(NewForward, NewUp);
-
-            if (!NewForward.IsNearlyZero())
-            {
-                NewForward.Normalize();
-                NewRotation = UKismetMathLibrary::MakeRotFromXZ(NewForward, NewUp);
-                OwnerCharacter->SetActorRotation(NewRotation);
-            }
-        }
-    }
-
-    float DistanceToTarget = FVector::Dist(NewLocation, DynamicTarget);
-    if (DistanceToTarget <= AcceptanceRadius)
-    {
-        bIsMoving = false;
-        UE_LOG(LogTemp, Warning, TEXT("Arrived at Destination. Distance: %f"), DistanceToTarget);
-    }
 }
