@@ -17,6 +17,8 @@ AClimbingCharacter::AClimbingCharacter()
     CameraBoom->SetRelativeLocation(FVector::ZeroVector);
     CameraBoom->TargetArmLength = 1500.0f;
     CameraBoom->SetRelativeRotation(FRotator(-65.0f, 0.0f, 0.0f));
+    CameraBoom->bEnableCameraRotationLag = true;
+    CameraBoom->CameraRotationLagSpeed = 10.0f;
     CameraBoom->bUsePawnControlRotation = false;
     CameraBoom->bInheritPitch = false;
     CameraBoom->bInheritYaw = false;
