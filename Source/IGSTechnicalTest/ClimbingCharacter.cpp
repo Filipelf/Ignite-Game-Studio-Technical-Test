@@ -46,7 +46,7 @@ void AClimbingCharacter::RotateCameraLeft()
     {
         FRotator NewRotation = CameraBoom->GetComponentRotation();
         NewRotation.Yaw += 90.0f;
-        CameraBoom->SetRelativeRotation(NewRotation);
+        CameraBoom->SetWorldRotation(NewRotation);
     }
 }
 
@@ -56,7 +56,7 @@ void AClimbingCharacter::RotateCameraRight()
     {
         FRotator NewRotation = CameraBoom->GetComponentRotation();
         NewRotation.Yaw -= 90.0f;
-        CameraBoom->SetRelativeRotation(NewRotation);
+        CameraBoom->SetWorldRotation(NewRotation);
     }
 }
 
@@ -66,6 +66,6 @@ void AClimbingCharacter::ResetCameraRotation()
     {
         FRotator NewRotation = CameraBoom->GetComponentRotation();
         NewRotation = FRotator(-65.0f, 0.0f, 0.0f);
-        CameraBoom->SetRelativeRotation(NewRotation);
+        CameraBoom->SetWorldRotation(NewRotation);
     }
 }
