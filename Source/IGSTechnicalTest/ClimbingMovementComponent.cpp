@@ -342,11 +342,13 @@ bool UClimbingMovementComponent::IsPathBlocked(const FVector& Start, const FVect
         {
             DrawDebugLine(GetWorld(), Start, Hit.Location, FColor::Red, false, 2.0f, 0, 4.0f);
             DrawDebugSphere(GetWorld(), Hit.Location, 30.0f, 12, FColor::Red, false, 2.0f);
+
             return true;
         }
     }
 
     DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.5f, 0, 2.0f);
+
     return false;
 }
 
@@ -366,7 +368,7 @@ FVector UClimbingMovementComponent::FindDetourPoint(const FVector& Current, cons
 
     FVector DetourDirection = (Attempt % 2 == 0) ? Right : Left;
 
-    float DetourDistance = 400.0f + (Attempt * 200.0f);
+    float DetourDistance = BaseDetourDistance + (Attempt * DetourDistanceIncrement);
 
     FVector DetourPoint = Current + DetourDirection * DetourDistance;
 
@@ -411,7 +413,7 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
             {
                 bool bFoundDetour = false;
 
-                for (int32 Attempt = 0; Attempt < 5; Attempt++)
+                for (int32 Attempt = 0; Attempt < MaxDetourAttempts; Attempt++)
                 {
                     FVector DetourPoint = FindDetourPoint(CurrentPos, FinalDestination, Attempt);
 

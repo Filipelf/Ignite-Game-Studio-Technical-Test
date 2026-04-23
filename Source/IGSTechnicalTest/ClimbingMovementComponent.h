@@ -40,6 +40,15 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Climbing")
     float SnapPositionTolerance = 5.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
+    int32 MaxDetourAttempts = 20;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
+    float BaseDetourDistance = 250.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
+    float DetourDistanceIncrement = 150.0f;
+
     UFUNCTION(BlueprintCallable)
     void MoveToLocation(const FVector& TargetLocation);
 
