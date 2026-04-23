@@ -134,8 +134,8 @@ bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator&
         CurrentClimbingSurface = Hit.GetComponent();
 
         FVector OutwardNormal = Hit.Normal;
-        FVector SphereCenter = FVector::ZeroVector;
-        FVector DirToCenter = (SphereCenter - Hit.Location).GetSafeNormal();
+        FVector MeshCenter = Hit.GetComponent()->Bounds.Origin;
+        FVector DirToCenter = (MeshCenter - Hit.Location).GetSafeNormal();
 
         if (FVector::DotProduct(OutwardNormal, DirToCenter) > 0)
             OutwardNormal = -OutwardNormal;
