@@ -18,13 +18,17 @@ protected:
     virtual void BeginPlay() override;
 
 public:
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+    bool bShowDebug = false;
 
+    // Movement Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float MovementSpeed = 600.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float AcceptanceRadius = 50.0f;
 
+    // Climbing Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Climbing")
     bool bEnableSnap = true;
 
@@ -40,6 +44,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Climbing")
     float SnapPositionTolerance = 5.0f;
 
+    // Steering Configuration
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
     int32 MaxDetourAttempts = 20;
 
@@ -56,6 +61,7 @@ public:
     bool SnapToSurface(FVector& InOutPosition, FRotator& OutRotation);
 
     virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 private:
     UPROPERTY(EditAnywhere, Category = "Climbing")
     float MaxTraceDistance = 3000.0f;
@@ -68,16 +74,15 @@ private:
 
     bool bIsMoving = false;
     FVector TargetDestination;
-
     TArray<FVector> WaypointQueue;
 
     bool FindClimbingSurface(const FVector& FromPosition, FHitResult& OutHit);
-
     void NoSnapMovement(float DeltaTime);
-
     void CharacterIdleStateWithSnap();
     void CharacterMovingStateWithSnap(float DeltaTime);
 
     bool IsPathBlocked(const FVector& Start, const FVector& End);
     FVector FindDetourPoint(const FVector& Current, const FVector& Target, int32 Attempt);
+
+    void DebugPrint(const FString& Message, float Duration = 2.0f);
 };

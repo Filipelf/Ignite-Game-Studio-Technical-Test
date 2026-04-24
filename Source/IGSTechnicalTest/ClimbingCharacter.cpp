@@ -1,11 +1,11 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "ClimbingCharacter.h"
 #include "ClimbingMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 
+// Sets up movement component and top-down spring arm camera
 AClimbingCharacter::AClimbingCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
@@ -35,11 +35,13 @@ void AClimbingCharacter::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 }
 
+// Binds input actions
 void AClimbingCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
+// Rotates camera 90 degrees left around pivot
 void AClimbingCharacter::RotateCameraLeft()
 {
     if (CameraBoom)
@@ -50,6 +52,7 @@ void AClimbingCharacter::RotateCameraLeft()
     }
 }
 
+// Rotates camera 90 degrees right around pivot
 void AClimbingCharacter::RotateCameraRight()
 {
     if (CameraBoom)
@@ -60,6 +63,7 @@ void AClimbingCharacter::RotateCameraRight()
     }
 }
 
+// Resets camera to default top-down angle
 void AClimbingCharacter::ResetCameraRotation()
 {
     if (CameraBoom)

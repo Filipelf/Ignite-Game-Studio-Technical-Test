@@ -1,6 +1,5 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "ClimbingMovementComponent.h"
 #include "ClimbingCharacter.h"
 #include "Components/PrimitiveComponent.h"
@@ -13,6 +12,17 @@ UClimbingMovementComponent::UClimbingMovementComponent()
     PrimaryComponentTick.bCanEverTick = true;
 }
 
+// Shows debug text on screen and log
+void UClimbingMovementComponent::DebugPrint(const FString& Message, float Duration)
+{
+    if (bShowDebug && OwnerCharacter)
+    {
+        GEngine->AddOnScreenDebugMessage(-1, Duration, FColor::White, Message);
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *Message);
+    }
+}
+
+// Initializes component and snaps character to surface on spawn
 void UClimbingMovementComponent::BeginPlay()
 {
     Super::BeginPlay();
@@ -21,7 +31,7 @@ void UClimbingMovementComponent::BeginPlay()
 
     if (OwnerCharacter)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ClimbingMovementComponent Initialized"));
+        DebugPrint(TEXT("ClimbingMovementComponent Initialized"), 3.0f);
 
         FVector Pos = OwnerCharacter->GetActorLocation();
         FRotator Rot = OwnerCharacter->GetActorRotation();
@@ -34,14 +44,17 @@ void UClimbingMovementComponent::BeginPlay()
             if (SnapToSurface(Pos, Rot))
             {
                 OwnerCharacter->SetActorLocationAndRotation(Pos, Rot);
-                UE_LOG(LogTemp, Warning, TEXT("Initial Snap Applied"));
+                DebugPrint(TEXT("Initial Snap Applied"), 3.0f);
             }
         }
         else
-            UE_LOG(LogTemp, Error, TEXT("No Surface Found at Spawn"));
+        {
+            DebugPrint(TEXT("No Surface Found at Spawn"), 5.0f);
+        }
     }
 }
 
+// Main update loop, delegates to state functions
 void UClimbingMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -64,6 +77,7 @@ void UClimbingMovementComponent::TickComponent(float DeltaTime, ELevelTick TickT
     CharacterMovingStateWithSnap(DeltaTime);
 }
 
+// Linear movement without surface snapping
 void UClimbingMovementComponent::NoSnapMovement(float DeltaTime)
 {
     if (!bIsMoving)
@@ -85,6 +99,7 @@ void UClimbingMovementComponent::NoSnapMovement(float DeltaTime)
         bIsMoving = false;
 }
 
+// Maintains surface adhesion while stationary
 void UClimbingMovementComponent::CharacterIdleStateWithSnap()
 {
     FVector CurrentPos = OwnerCharacter->GetActorLocation();
@@ -119,6 +134,7 @@ void UClimbingMovementComponent::CharacterIdleStateWithSnap()
     }
 }
 
+// Moves along surface with dynamic target and rotation alignment
 void UClimbingMovementComponent::CharacterMovingStateWithSnap(float DeltaTime)
 {
     FVector DynamicTarget = TargetDestination;
@@ -133,7 +149,7 @@ void UClimbingMovementComponent::CharacterMovingStateWithSnap(float DeltaTime)
     if (Direction.IsNearlyZero())
     {
         bIsMoving = false;
-        UE_LOG(LogTemp, Warning, TEXT("Arrived at Destination (ZeroVector)"));
+        DebugPrint(TEXT("Arrived at Destination (ZeroVector)"));
         return;
     }
 
@@ -162,22 +178,26 @@ void UClimbingMovementComponent::CharacterMovingStateWithSnap(float DeltaTime)
     }
 
     float DistanceToTarget = FVector::Dist(NewLocation, DynamicTarget);
+
     if (DistanceToTarget <= AcceptanceRadius)
     {
         if (WaypointQueue.Num() > 0)
         {
             TargetDestination = WaypointQueue[0];
             WaypointQueue.RemoveAt(0);
-            UE_LOG(LogTemp, Warning, TEXT("Moving to Next Waypoint. Attempts Left: %d"), WaypointQueue.Num());
+
+            DebugPrint(FString::Printf(TEXT("Moving to Next Waypoint")));
         }
         else
         {
             bIsMoving = false;
-            UE_LOG(LogTemp, Warning, TEXT("Couldnt Find Path to Destination"));
+
+            DebugPrint(TEXT("Arrived at Final Destination"), 3.0f);
         }
     }
 }
 
+// Locates climbable surface
 bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition, FHitResult& OutHit)
 {
     if (!OwnerCharacter)
@@ -205,11 +225,13 @@ bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition
                 FVector TraceStart = FromPosition + NormalHit.Normal * 100.0f;
                 FVector TraceEnd = FromPosition + TraceDir * MaxTraceDistance;
 
-                DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Yellow, false, 1.0f, 0, 2.0f);
+                if (bShowDebug)
+                    DrawDebugLine(GetWorld(), TraceStart, TraceEnd, FColor::Yellow, false, 0.2f, 0, 2.0f);
 
                 if (GetWorld()->LineTraceSingleByChannel(OutHit, TraceStart, TraceEnd, ECC_WorldStatic, QueryParams))
                 {
-                    DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Green, false, 0.1f);
+                    if (bShowDebug)
+                        DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Green, false, 0.1f);
 
                     if (OutHit.GetComponent() && OutHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
                         return true;
@@ -223,11 +245,13 @@ bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition
         FVector StartCenter = FromPosition;
         FVector EndCenter = FromPosition + DirToCenter * MaxTraceDistance;
 
-        DrawDebugLine(GetWorld(), StartCenter, EndCenter, FColor::Magenta, false, 1.0f, 0, 2.0f);
+        if (bShowDebug)
+            DrawDebugLine(GetWorld(), StartCenter, EndCenter, FColor::Magenta, false, 1.0f, 0, 2.0f);
 
         if (GetWorld()->LineTraceSingleByChannel(OutHit, StartCenter, EndCenter, ECC_WorldStatic, QueryParams))
         {
-            DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Orange, false, 0.1f);
+            if (bShowDebug)
+                DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Orange, false, 0.1f);
 
             if (OutHit.GetComponent() && OutHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
                 return true;
@@ -237,16 +261,17 @@ bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition
     FVector StartDown = FromPosition + FVector::UpVector * 100.0f;
     FVector EndDown = FromPosition - FVector::UpVector * MaxTraceDistance;
 
-    DrawDebugLine(GetWorld(), StartDown, EndDown, FColor::Cyan, false, 1.0f, 0, 2.0f);
+    if (bShowDebug)
+        DrawDebugLine(GetWorld(), StartDown, EndDown, FColor::Cyan, false, 1.0f, 0, 2.0f);
 
     if (GetWorld()->LineTraceSingleByChannel(OutHit, StartDown, EndDown, ECC_WorldStatic, QueryParams))
     {
-        DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Blue, false, 0.1f);
+        if (bShowDebug)
+            DrawDebugSphere(GetWorld(), OutHit.Location, 20.0f, 12, FColor::Blue, false, 0.1f);
 
         if (OutHit.GetComponent() && OutHit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
         {
             CurrentClimbingSurface = OutHit.GetComponent();
-
             return true;
         }
     }
@@ -254,6 +279,7 @@ bool UClimbingMovementComponent::FindClimbingSurface(const FVector& FromPosition
     return false;
 }
 
+// Calculates optimal position and rotation to adhere to surface
 bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator& OutRotation)
 {
     if (!bEnableSnap || !OwnerCharacter)
@@ -261,12 +287,12 @@ bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator&
 
     if (InOutPosition.ContainsNaN())
     {
-        UE_LOG(LogTemp, Error, TEXT("SnapToSurface got NaN position"));
-
+        DebugPrint(TEXT("SnapToSurface got NaN position"), 5.0f);
         return false;
     }
 
     FHitResult Hit;
+
     if (FindClimbingSurface(InOutPosition, Hit))
     {
         CurrentClimbingSurface = Hit.GetComponent();
@@ -324,6 +350,7 @@ bool UClimbingMovementComponent::SnapToSurface(FVector& InOutPosition, FRotator&
     return false;
 }
 
+// Checks if straight path is blocked by non-climbable obstacle
 bool UClimbingMovementComponent::IsPathBlocked(const FVector& Start, const FVector& End)
 {
     if (!OwnerCharacter)
@@ -340,18 +367,23 @@ bool UClimbingMovementComponent::IsPathBlocked(const FVector& Start, const FVect
     {
         if (!Hit.GetComponent()->ComponentHasTag(TEXT("ClimbableSurface")))
         {
-            DrawDebugLine(GetWorld(), Start, Hit.Location, FColor::Red, false, 2.0f, 0, 4.0f);
-            DrawDebugSphere(GetWorld(), Hit.Location, 30.0f, 12, FColor::Red, false, 2.0f);
+            if (bShowDebug)
+            {
+                DrawDebugLine(GetWorld(), Start, Hit.Location, FColor::Red, false, 2.0f, 0, 4.0f);
+                DrawDebugSphere(GetWorld(), Hit.Location, 30.0f, 12, FColor::Red, false, 2.0f);
+            }
 
             return true;
         }
     }
 
-    DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.5f, 0, 2.0f);
+    if (bShowDebug)
+        DrawDebugLine(GetWorld(), Start, End, FColor::Green, false, 0.5f, 0, 2.0f);
 
     return false;
 }
 
+// Generates offset point to bypass obstacle
 FVector UClimbingMovementComponent::FindDetourPoint(const FVector& Current, const FVector& Target, int32 Attempt)
 {
     if (!OwnerCharacter)
@@ -377,12 +409,16 @@ FVector UClimbingMovementComponent::FindDetourPoint(const FVector& Current, cons
     if (FindClimbingSurface(DetourPoint, Hit))
         DetourPoint = Hit.Location + Hit.Normal * SurfaceOffset;
 
-    DrawDebugSphere(GetWorld(), DetourPoint, 40.0f, 12, FColor::Yellow, false, 3.0f);
-    DrawDebugString(GetWorld(), DetourPoint, FString::Printf(TEXT("Attempt %d"), Attempt), nullptr, FColor::Yellow, 3.0f);
+    if (bShowDebug)
+    {
+        DrawDebugSphere(GetWorld(), DetourPoint, 40.0f, 12, FColor::Yellow, false, 3.0f);
+        DrawDebugString(GetWorld(), DetourPoint, FString::Printf(TEXT("Attempt %d"), Attempt), nullptr, FColor::Yellow, 3.0f);
+    }
 
     return DetourPoint;
 }
 
+// Validates click and finds path, using steering algorithm if blocked
 void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
 {
     if (!OwnerCharacter)
@@ -429,20 +465,19 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
                             WaypointQueue.RemoveAt(0);
                             bIsMoving = true;
 
-                            UE_LOG(LogTemp, Warning, TEXT("Linear Path blocked. Going through waypoint %d"), WaypointQueue.Num() + 1);
-
+                            DebugPrint(FString::Printf(TEXT("Obstacle Found. Using Detour")));
                             return;
                         }
                     }
                 }
 
-                UE_LOG(LogTemp, Warning, TEXT("No Detour Found. Moving Straight."));
+                DebugPrint(TEXT("No Detour Found. Moving Straight."), 3.0f);
             }
 
             TargetDestination = FinalDestination;
             bIsMoving = true;
 
-            UE_LOG(LogTemp, Warning, TEXT("Moving to a Valid Destination: %s"), *TargetDestination.ToString());
+            DebugPrint(TEXT("Moving to Valid Destination"), 2.0f);
 
             return;
         }
@@ -453,10 +488,10 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
         TargetDestination = Hit.Location + Hit.Normal * SurfaceOffset;
         bIsMoving = true;
 
-        UE_LOG(LogTemp, Warning, TEXT("Moving to Destination (Fallback): %s"), *TargetDestination.ToString());
+        DebugPrint(TEXT("Moving to Destination (Fallback)"), 2.0f);
 
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Moved to final Destination"));
+    DebugPrint(TEXT("Invalid Click. No Surface Found."), 3.0f);
 }

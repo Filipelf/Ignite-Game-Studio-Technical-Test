@@ -21,6 +21,7 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UClimbingMovementComponent* ClimbingMovementComponent;
 
+    // Camera Configuration
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
     class USpringArmComponent* CameraBoom;
 
