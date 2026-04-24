@@ -44,10 +44,10 @@ public:
     int32 MaxDetourAttempts = 20;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
-    float BaseDetourDistance = 250.0f;
+    float BaseDetourDistance = 400.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Steering")
-    float DetourDistanceIncrement = 150.0f;
+    float DetourDistanceIncrement = 200.0f;
 
     UFUNCTION(BlueprintCallable)
     void MoveToLocation(const FVector& TargetLocation);

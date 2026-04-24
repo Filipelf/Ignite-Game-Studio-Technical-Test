@@ -458,5 +458,5 @@ void UClimbingMovementComponent::MoveToLocation(const FVector& TargetLocation)
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Invalid Click. No Surface Found"));
+    UE_LOG(LogTemp, Warning, TEXT("Moved to final Destination"));
 }
